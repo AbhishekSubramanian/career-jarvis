@@ -85,6 +85,35 @@ layer (LiteLLM), and a pluggable notification channel.
 - **Notifier can't crash the pipeline** — every backend call is wrapped.
 - **Structured logging** throughout.
 
+## Security model (you're granting Gmail read+compose access)
+
+- **Scopes locked:** only `gmail.readonly` + `gmail.compose` are requested.
+  `gmail.send` is never requested and never called. You are always the send
+  button. (`grep -r gmail.send src/` returns only negative-assertion comments.)
+- **Secrets never committed:** `.env`, `.data/` (OAuth credentials, token,
+  SQLite), and the real `career_profile.md` / `wiki/` are all gitignored.
+- **Token + DB file permissions:** the OAuth token and SQLite DB are written
+  with `chmod 0o600` (owner-only) on POSIX.
+- **Prompt-injection defense (PII guard):** emails are untrusted input. The
+  drafter system prompt forbids including your phone/email/salary/visa
+  status/employer in replies, and a post-filter (`_scrub_pii`) strips any of
+  those literals that slip through, with a logged warning.
+- **Alert privacy:** opportunity alerts point you to Gmail Drafts but do NOT
+  include the draft text (ntfy topics are public-by-default). Error alerts
+  send only a short summary — never stack traces or file paths — to the
+  notifier. Full tracebacks stay in local logs.
+- **ntfy header safety:** notification titles are sanitized to latin-1 so
+  unicode (em-dashes, emoji) can't crash the HTTP send.
+- **No em-dashes in drafts:** enforced both in the drafter prompt and by a
+  code-level post-filter (`_strip_em_dashes`).
+- **SQL is parameterized** everywhere; no injection surface.
+- **No agent frameworks** — plain typed functions; LiteLLM is a thin client.
+- **Data sent to your LLM provider:** the classifier sees every new email's
+  sender/subject/body (first 4000 chars); the drafter sees your profile +
+  the email. Anthropic's paid-API terms default to no-training with ~30-day
+  retention; verify current terms at anthropic.com/legal. To send zero data
+  to any third party, run the classifier on **local Ollama** (see Model table).
+
 ---
 
 ## Quick start
@@ -327,39 +356,31 @@ Same as systemd on a $4/mo VPS (Hetzner/Contabo). Keep `.data/` on persistent
 storage. Make sure the VPS IP isn't on Gmail's suspicious-login list — use a
 residential-ish region and authorize it during OAuth.
 
-### GitHub Actions cron (run `--once`)
+### GitHub Actions cron (run `--once`) — recommended free deployment
 
-```yaml
-# .github/workflows/career-jarvis.yml
-name: career-jarvis
-on:
-  schedule:
-    - cron: "*/15 * * * *"      # every 15 min
-  workflow_dispatch:
-jobs:
-  run:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
-      - run: pip install -r requirements.txt
-      - run: python -m src.main --once
-        env:
-          CLASSIFIER_MODEL: ${{ secrets.CLASSIFIER_MODEL }}
-          DRAFTER_MODEL: ${{ secrets.DRAFTER_MODEL }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          NOTIFY_CHANNEL: ntfy
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-          GMAIL_CREDENTIALS_JSON: .data/credentials.json
-          TOKEN_PATH: .data/token.json
-          STATE_DB_PATH: .data/career_jarvis.db
-```
+A complete, ready-to-use workflow is included at
+[`.github/workflows/career-jarvis.yml`](.github/workflows/career-jarvis.yml),
+with a full step-by-step guide in [`.github/DEPLOYMENT.md`](.github/DEPLOYMENT.md).
 
-> For Actions you must persist `.data/` (token + SQLite) across runs — commit
-> them as **encrypted repository secrets/artifacts**, or cache them. The OAuth
-> token must be generated once locally and uploaded as a secret; GitHub can't
-> do the interactive browser OAuth.
+**Short version:**
+1. Generate the OAuth token locally once (`python -m src.main --once`) — a
+   cloud runner can't open a browser.
+2. Add repository Secrets: `ANTHROPIC_API_KEY`, `NTFY_TOPIC`,
+   `CLASSIFIER_MODEL`, `DRAFTER_MODEL`, and the **entire JSON contents** of
+   your local `.data/credentials.json` and `.data/token.json` as
+   `GMAIL_CREDENTIALS_JSON` and `GMAIL_TOKEN_JSON`.
+3. Push to `main`. The workflow runs `--once` every 15 minutes on GitHub's
+   runners, free.
+
+The critical detail (handled by the included workflow): GitHub runners are
+ephemeral, so the SQLite state DB (dedup + `historyId` cursor) **must** be
+cached across runs. The workflow uses `actions/cache@v4` on `.data/` with a
+**fixed cache key** so every run restores and re-saves the same DB slot.
+Without this, every run would either re-backfill or miss messages. The
+workflow also writes the OAuth files from secrets each run, `chmod 600`s
+them, validates the JSON, and uses a concurrency group so runs don't
+overlap. See `.github/DEPLOYMENT.md` for monitoring, token-refresh, and
+cache-eviction notes.
 
 ### Rough API-cost expectations
 
@@ -441,13 +462,19 @@ career-jarvis/
       classifier.py      # triage -> validated Pydantic verdict, retry, fail-safe
       drafter.py         # reply drafting, grounded in career_profile.md
   profile/
-    career_profile.md    # ground truth for the drafter
+    career_profile.example.md  # sanitized template (real profile is gitignored)
   requirements.txt
   .env.example
+  .gitignore           # excludes .env, .data/, real profile, wiki/
   README.md
+  .github/
+    DEPLOYMENT.md      # GitHub Actions deploy guide
+    workflows/
+      career-jarvis.yml  # cron --once workflow (free, always-on)
   tests/
     __init__.py
     test_classifier.py   # replay sample emails, assert categories (mocked LLM)
+    test_drafter.py      # security regression: em-dash, latin-1, PII scrub, alert privacy
     sample_emails.py     # 8 fixtures
 ```
 

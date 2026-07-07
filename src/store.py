@@ -67,6 +67,11 @@ class Store:
         self._conn.execute("PRAGMA synchronous=NORMAL;")
         self._conn.execute("PRAGMA foreign_keys=ON;")
         self._conn.executescript(_SCHEMA)
+        # SECURITY: the DB stores classification verdicts, sender/subject, and
+        # drafted replies - sensitive. Restrict file permissions to the owner.
+        _chmod_secret(db_path)
+        # WAL mode also creates a -wal sidecar; restrict it too if it appears.
+        _chmod_secret(db_path.with_suffix(db_path.suffix + "-wal"))
         log.debug("Store ready at %s", self.db_path)
 
     def close(self) -> None:
@@ -178,3 +183,17 @@ class Store:
                 (source, message_id),
             ).fetchone()
         return dict(row) if row else None
+
+
+def _chmod_secret(path: Path) -> None:
+    """Restrict a sensitive file to owner-only (0o600) on POSIX.
+
+    Best-effort: silently ignored on filesystems that don't support chmod.
+    """
+    import os
+
+    try:
+        if path.exists():
+            os.chmod(path, 0o600)
+    except OSError:
+        log.debug("Could not chmod %s (continuing): ignored", path)

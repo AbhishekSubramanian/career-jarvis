@@ -20,7 +20,6 @@ import argparse
 import logging
 import sys
 import time
-import traceback
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
@@ -178,20 +177,28 @@ class Orchestrator:
             gmail_draft_id=gmail_draft_id,
             dry_run=self.dry_run,
             source=source,
+            # SECURITY: never send draft text through a real push channel
+            # (ntfy topics are public-by-default). Dry-run uses a local
+            # printer, so it's safe to show the draft there for visibility.
+            include_draft=self.dry_run,
         )
         self.notifier.send_opportunity_alert(alert)
         log.info("Opportunity (%s, %s): %s", verdict.category, verdict.urgency, message.subject[:80])
 
     def _handle_unexpected(self, source: str, message: EmailRecord, exc: Exception) -> None:
+        # SECURITY: log the full traceback locally, but NEVER send it to the
+        # notifier. Tracebacks can contain file paths, variable values, and
+        # message content; the notifier may POST to a third-party server
+        # (ntfy.sh). Send only a short, safe summary to the phone.
         log.exception("Unexpected error processing %s/%s", source, message.id)
-        tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
         self.store.record_error(
             source, message.id, error=f"{type(exc).__name__}: {exc}",
             thread_id=message.thread_id, sender=message.sender, subject=message.subject,
         )
         self.notifier.send_error_alert(
             f"Pipeline error on a message.\nFrom: {message.sender}\n"
-            f"Subject: {message.subject}\nError: {exc}\n\n{tb[:800]}"
+            f"Subject: {message.subject}\nError: {type(exc).__name__}. "
+            f"See logs for details."
         )
 
     # --- Cycle --------------------------------------------------------------
@@ -263,7 +270,16 @@ def _format_opportunity_alert(
     gmail_draft_id: str,
     dry_run: bool,
     source: str,
+    include_draft: bool = True,
 ) -> str:
+    """Format the phone alert for an opportunity.
+
+    SECURITY: by default `include_draft` is True ONLY in --dry-run (where the
+    notifier is a local printer). In real runs we pass include_draft=False so
+    the draft text never transits a third-party push server (ntfy.sh topics are
+    public-by-default). The user reads the draft in Gmail/LinkedIn, not in the
+    push notification.
+    """
     icon = {"high": "🚨", "medium": "📨", "low": "ℹ️"}.get(verdict.urgency, "📨")
     src_label = "LinkedIn" if verdict.source == "linkedin" else "Email"
     lines = [
@@ -271,20 +287,26 @@ def _format_opportunity_alert(
         f"From: {message.sender}",
         f"Subject: {message.subject}",
         f"Summary: {verdict.summary}",
-        "",
-        "Draft:",
-        draft_text,
     ]
+    if include_draft:
+        lines += ["", "Draft:", draft_text]
     if verdict.source == "email":
         if dry_run or not gmail_draft_id:
             lines.append("")
             lines.append("[dry-run] No Gmail draft created (dry-run).")
         else:
             lines.append("")
-            lines.append(f"✅ Gmail draft created (id={gmail_draft_id}). Edit + send from your phone.")
+            lines.append(
+                "Gmail draft created - open Gmail Drafts on your phone to "
+                "review and send. (Draft text is NOT included here for privacy.)"
+            )
     else:  # linkedin
         lines.append("")
-        lines.append("⚠️ Open the LinkedIn thread and paste to send — the system will NOT send for you.")
+        lines.append(
+            "Open the LinkedIn thread to review the draft and paste to send - "
+            "the system will NOT send for you. (Draft text is NOT included "
+            "here for privacy.)"
+        )
     if dry_run:
         lines.insert(0, "[DRY-RUN] " + lines[0])
     return "\n".join(lines)

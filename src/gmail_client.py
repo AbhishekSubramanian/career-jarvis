@@ -83,7 +83,7 @@ class GmailClient:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
             token_path.parent.mkdir(parents=True, exist_ok=True)
-            token_path.write_text(creds.to_json())
+            _write_secret_file(token_path, creds.to_json())
             return creds
 
         # First run: run the OAuth flow (opens a browser locally).
@@ -96,7 +96,7 @@ class GmailClient:
         flow = InstalledAppFlow.from_client_secrets_file(str(creds_path), SCOPES)
         creds = flow.run_local_server(port=0)
         token_path.parent.mkdir(parents=True, exist_ok=True)
-        token_path.write_text(creds.to_json())
+        _write_secret_file(token_path, creds.to_json())
         return creds
 
     @property
@@ -337,3 +337,23 @@ def _b64url_decode(data: str) -> bytes:
 
 def _b64url_encode(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
+
+
+def _write_secret_file(path: Path, contents: str) -> None:
+    """Write a secret file (OAuth token, etc.) with restrictive permissions.
+
+    SECURITY: the Gmail OAuth token is a bearer credential for the user's
+    entire mailbox (read + compose). On POSIX systems we chmod 0o600 so other
+    users on the host can't read it. On Windows the umask/ACL model differs
+    and this chmod is a no-op, but we set it unconditionally for portability.
+    """
+    import os
+
+    path.write_text(contents)
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        # Not all platforms/filesystems support chmod (e.g. some Windows
+        # configs); don't fail the run over it. The file is still in .data/,
+        # which the user should keep non-shared.
+        log.debug("Could not chmod %s (continuing): ignored", path)
