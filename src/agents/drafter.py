@@ -1,6 +1,6 @@
 """Drafter agent — write a reply in the user's voice, grounded in career_profile.md.
 
-Grounding rules (from BUILD_PROMPT.md + career_profile.md):
+Grounding rules (from career_profile.md):
 - Reads profile/career_profile.md as ground truth.
 - Primary goal: be genuinely helpful and keep good conversations going. Lead
   with specific interest in the role/team; treat comp and sponsorship as

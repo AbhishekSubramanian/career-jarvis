@@ -1,6 +1,6 @@
 """Classifier tests — replay sample emails, assert verdicts, mock the LLM.
 
-Acceptance criteria from BUILD_PROMPT.md:
+Acceptance criteria:
 - recruiter -> opportunity
 - agency-spam -> NOT opportunity
 - interview -> HIGH urgency

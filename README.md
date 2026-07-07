@@ -292,11 +292,11 @@ Draft:
 
 ## ⚠️ OPTIONAL: direct LinkedIn message ingestion (opt-in, against LinkedIn ToS)
 
-> **Read `LINKEDIN_ADDENDUM.md` before enabling.** Direct browser automation of
-> your logged-in LinkedIn session **violates LinkedIn's User Agreement**.
-> LinkedIn actively detects automation; the realistic risk is **account
-> restriction or a permanent ban**. The email-notification baseline (this
-> app's default) is the safe, supported path.
+> **Direct browser automation of your logged-in LinkedIn session violates
+> LinkedIn's User Agreement.** LinkedIn actively detects automation; the
+> realistic risk is **account restriction or a permanent ban**. The
+> email-notification baseline (this app's default) is the safe, supported
+> path.
 
 This is **off by default** (`LINKEDIN_ENABLED=false`). The baseline already
 ingests LinkedIn messages via their notification emails — no automation, no

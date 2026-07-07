@@ -1,6 +1,6 @@
 """OPTIONAL direct LinkedIn message ingestion (opt-in, behind LINKEDIN_ENABLED).
 
-⚠️ WARNING — read LINKEDIN_ADDENDUM.md before enabling.
+⚠️ WARNING — read the warning below before enabling.
 Direct browser automation of your logged-in LinkedIn session violates
 LinkedIn's User Agreement. LinkedIn actively detects automation; the
 realistic risk is account restriction or a permanent ban. The email-

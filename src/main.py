@@ -5,7 +5,7 @@ Modes:
   python -m src.main --once --dry-run # full loop against MOCKED gmail+LLM, no creds
   python -m src.main                 # daemon: poll every POLL_MINUTES
 
-Reliability guarantees (per BUILD_PROMPT.md):
+Reliability guarantees:
 - SQLite dedup: every message id processed exactly once across restarts.
 - Per-message try/except: one poison message never wedges the loop. On
   per-message failure we send an error alert and mark the message processed

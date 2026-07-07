@@ -1,6 +1,6 @@
 """Classifier agent — triage every ingested message into a validated verdict.
 
-Contract (per BUILD_PROMPT.md):
+Contract:
   - Schema-validated JSON via Pydantic v2, temperature=0, strict system prompt.
   - On malformed output: retry once, then fail safe by flagging for manual
     review (NEVER silently drop).
