@@ -1,0 +1,40 @@
+# Secrets and local config — NEVER commit
+.env
+.env.local
+.env.*.local
+
+# Personal profile (contains PII: phone, email, salary, visa status).
+# A sanitized template lives at profile/career_profile.example.md.
+profile/career_profile.md
+career_profile.md
+
+# Personal wiki (PII) — not part of the application
+wiki/
+
+# Google OAuth + app state (credentials, token, SQLite, LinkedIn profile)
+.data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

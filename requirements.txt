@@ -1,0 +1,13 @@
+# Career Jarvis dependencies
+litellm>=1.52.0
+google-api-python-client>=2.140.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+pydantic>=2.7.0
+python-dotenv>=1.0.1
+requests>=2.32.0
+pytest>=8.2.0
+
+# Optional: direct LinkedIn ingestion (opt-in, behind LINKEDIN_ENABLED).
+# Uncomment to use the Playwright LinkedIn path.
+# playwright>=1.40.0
