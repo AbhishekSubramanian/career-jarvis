@@ -81,7 +81,8 @@ class Orchestrator:
         path (success, skip, error, manual review) so it can never loop.
         """
         if self.store.is_processed(source, message.id):
-            log.debug("Skip already-processed %s/%s", source, message.id)
+            log.info("Skip already-processed %s/%s (%s)", source, message.id,
+                     (message.subject or "")[:80])
             return
 
         # Hard-skip by sender (e.g. own address, known noise).
@@ -348,11 +349,14 @@ def _run(args: argparse.Namespace) -> int:
         print(f"Configuration error:\n{exc}", file=sys.stderr)
         return 2
 
-    if args.dry_run:
-        # Fresh DB each dry-run so the cycle always demonstrates the full
-        # pipeline (otherwise dedup skips everything on a 2nd run).
+    if args.reset_db:
+        # Explicit fresh-start: delete the state DB so the next cycle processes
+        # everything from scratch. Use this to re-demo dry-run, or to recover
+        # from a corrupted cursor. By default the DB persists across runs so
+        # dedup works (the same message is never re-processed/re-drafted).
         try:
             config.state_db_absolute.unlink()
+            log.info("Reset: deleted state DB at %s", config.state_db_absolute)
         except FileNotFoundError:
             pass
 
@@ -497,6 +501,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--once", action="store_true", help="run a single poll cycle then exit")
     parser.add_argument("--dry-run", action="store_true",
                         help="run the full loop against MOCKED Gmail + LLM; no live credentials")
+    parser.add_argument("--reset-db", action="store_true",
+                        help="delete the SQLite state DB before running (fresh start; re-process everything)")
     parser.add_argument("--verbose", action="store_true", help="DEBUG logging")
     args = parser.parse_args(argv)
     return _run(args)
