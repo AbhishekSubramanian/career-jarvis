@@ -356,31 +356,19 @@ Same as systemd on a $4/mo VPS (Hetzner/Contabo). Keep `.data/` on persistent
 storage. Make sure the VPS IP isn't on Gmail's suspicious-login list — use a
 residential-ish region and authorize it during OAuth.
 
-### GitHub Actions cron (run `--once`) — recommended free deployment
+### Cloud / GitHub Actions — intentionally disabled
 
-A complete, ready-to-use workflow is included at
-[`.github/workflows/career-jarvis.yml`](.github/workflows/career-jarvis.yml),
-with a full step-by-step guide in [`.github/DEPLOYMENT.md`](.github/DEPLOYMENT.md).
+This repo is an experiment. **GitHub Actions polling/deployment is not
+included** (no cron workflow, no Actions secrets setup). Do not enable
+scheduled Actions runs against this project.
 
-**Short version:**
-1. Generate the OAuth token locally once (`python -m src.main --once`) — a
-   cloud runner can't open a browser.
-2. Add repository Secrets: `ANTHROPIC_API_KEY`, `NTFY_TOPIC`,
-   `CLASSIFIER_MODEL`, `DRAFTER_MODEL`, and the **entire JSON contents** of
-   your local `.data/credentials.json` and `.data/token.json` as
-   `GMAIL_CREDENTIALS_JSON` and `GMAIL_TOKEN_JSON`.
-3. Push to `main`. The workflow runs `--once` every 15 minutes on GitHub's
-   runners, free.
+For now, run locally only:
 
-The critical detail (handled by the included workflow): GitHub runners are
-ephemeral, so the SQLite state DB (dedup + `historyId` cursor) **must** be
-cached across runs. The workflow uses `actions/cache@v4` on `.data/` with a
-**fixed cache key** so every run restores and re-saves the same DB slot.
-Without this, every run would either re-backfill or miss messages. The
-workflow also writes the OAuth files from secrets each run, `chmod 600`s
-them, validates the JSON, and uses a concurrency group so runs don't
-overlap. See `.github/DEPLOYMENT.md` for monitoring, token-refresh, and
-cache-eviction notes.
+```bash
+python -m src.main --once --dry-run   # smoke test, no live credentials
+python -m src.main --once             # one real poll cycle
+python -m src.main                    # local daemon (POLL_MINUTES)
+```
 
 ### Rough API-cost expectations
 
@@ -467,10 +455,6 @@ career-jarvis/
   .env.example
   .gitignore           # excludes .env, .data/, real profile, wiki/
   README.md
-  .github/
-    DEPLOYMENT.md      # GitHub Actions deploy guide
-    workflows/
-      career-jarvis.yml  # cron --once workflow (free, always-on)
   tests/
     __init__.py
     test_classifier.py   # replay sample emails, assert categories (mocked LLM)
